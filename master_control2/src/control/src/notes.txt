@@ -1,0 +1,107 @@
+#include "model_free.h"
+
+MF::MF(double P_,double I_,double D_,double Ts_, int N_,double alpha_){
+    init();
+    kp =P_; ki =I_; kd =D_; Ts= Ts_; N = N_; alpha = alpha_;
+}
+
+void MF::init(){
+    n=0;
+    I_1 =0; I_2 =0; phi =0;
+    error_Sum =0; last_value =0;last_output=0;
+}
+
+
+
+void MF::setSetpoint(double SetPoint_){
+    dref = (SetPoint_ - SetPoint) / Ts; //?? DIVIDIR PELO TEMPO??
+    SetPoint = SetPoint_;
+}
+
+double MF::ControlLoop(double current_value){
+
+    //Calculate the integrative estimation. If done update the phi estimation. At the end, it uses the current phi to calculate the output with PID
+
+    double Tau = n*Ts;
+    double T = N*Ts;
+
+
+    //PHI ESTIMATION
+    if(n == 0 || n==N){
+        I_1 += T *current_value;
+        I_2 += 0;
+    }
+    else{
+        I_1 += 2*((T - 2*Tau)*current_value);
+        I_2 += 2*alpha*Tau*(T-Tau)*last_output;
+    }
+    if( n== N){
+        I_1 = I_1*Ts/2;
+        I_2 = I_2*Ts/2;
+        phi = -6*(I_1 +I_2)/(T*T*T);
+        I_1 = T *current_value;
+        I_2 = 0;
+        n=0;
+    }
+
+
+    double err = current_value - SetPoint;
+    error_Sum += err;
+    double  diff = err - last_value;
+
+    double p_term = kp *err;
+    double i_term = ki * error_Sum;
+    double d_term = kd * diff;
+
+
+    double current_output =  -(phi - dref + p_term + i_term - d_term)/alpha;
+
+    dref = 0;//Only is differente from 0 if SetSetpoint is triggered during the loop
+    last_output = current_output;
+    last_value = current_value;
+    n++;
+
+
+
+
+    return;
+}
+
+
+
+
+
+
+#ifndef MF_H
+#define MF_H
+
+class MF{
+    public:
+        MF(double,double,double,double,int,double);
+        double ControlLoop(double);
+        void setSetpoint(double);
+
+    private:
+        void init();
+        double kp;
+        double ki;
+        double kd;
+        double Ts;
+        int N;
+        int n;
+        double I_1;
+        double I_2;
+        double phi;
+        double alpha;
+        double last_value;
+        double error_Sum;
+        double last_output;
+        double SetPoint;
+        double dref;
+};
+
+
+
+#endif
+
+
